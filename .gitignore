@@ -1,2 +1,43 @@
+# ---------- Python / environment ----------
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# ---------- Editors / OS ----------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ---------- Secrets ----------
+.env
+.env.*
+*.token
+
+# ---------- Data (never commit; regenerate with scripts) ----------
+# Ignore everything under data/, but keep the folder structure (__init__.py files)
+data/**/*
+!data/**/
+!data/**/__init__.py
+
+# Private PAO data (explicit, in case the rule above ever changes)
 data/raw/classification/Book1.xlsx
 data/raw/metadata_model/Book1.xlsx
+*.xlsx
+
+# ---------- Model outputs ----------
+models/
+*.safetensors
+*.npy
+*.joblib
+*.pt
+*.bin
+
+# ---------- Hugging Face / caches ----------
+.cache/
+.huggingface/
