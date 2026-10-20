@@ -1,6 +1,6 @@
-def main():
-    print("Hello from intelligent-document-finetuning!")
+import pandas as pd 
 
 
-if __name__ == "__main__":
-    main()
+df = pd.read_csv("models/bertopic/v1_default/topic_info.csv")
+
+print(df.head(30))
