@@ -1,0 +1,14 @@
+# PAO logbook metadata (private; never commit the Excel file)
+# Cleaned in: notebooks/01_pao_metadata_preparation.ipynb
+raw_file: data/raw/pao_metadata/Book1.xlsx
+sheets:                         # sheet name -> header row
+  COMMUNICATION: 2
+  CLEARANCE: 0
+  AOsMEMOs: 2
+  LEAVES: 0
+text_field: document_text       # built by joining descriptive columns per sheet
+label_field: label              # currently = sheet name
+drop_from_text:                 # leakage risk: these give the label away
+  - CONTROL#
+  - AO/MEMO/EO #
+planned_output: data/processed/pao_metadata_v1.parquet

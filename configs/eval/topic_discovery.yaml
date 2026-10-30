@@ -1,0 +1,3 @@
+# BERTopic evaluation against hidden true labels (labels never used for fitting)
+metrics: [n_topics, outlier_pct, nmi_all, ari_all, nmi_clustered, ari_clustered, weighted_purity]
+clean_topic_purity: 0.7

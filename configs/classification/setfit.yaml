@@ -1,0 +1,8 @@
+# Main model: SetFit (planned, not run yet)
+base_model: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+training:
+  batch_size: 16
+  num_epochs: 1                 # contrastive epochs
+  num_iterations: 20            # pairs generated per example
+head: logistic_regression
+seed: 42

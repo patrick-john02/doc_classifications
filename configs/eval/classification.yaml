@@ -1,0 +1,7 @@
+# Evaluation shared by every classifier, so results are comparable
+cv: StratifiedGroupKFold        # groups = document_text, so duplicates never leak across folds
+n_splits: 5
+shuffle: true
+seed: 42
+metrics: [accuracy, f1_macro]   # report macro-F1 first: classes are imbalanced
+report: [classification_report, confusion_matrix]

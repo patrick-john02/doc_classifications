@@ -20,14 +20,13 @@ Thumbs.db
 *.token
 
 # ---------- Data (never commit; regenerate with scripts) ----------
-# Ignore everything under data/, but keep the folder structure (__init__.py files)
+# Ignore everything under data/, but keep the folder structure (.gitkeep files)
 data/**/*
 !data/**/
-!data/**/__init__.py
+!data/**/.gitkeep
 
 # Private PAO data (explicit, in case the rule above ever changes)
-data/raw/classification/Book1.xlsx
-data/raw/metadata_model/Book1.xlsx
+data/raw/pao_metadata/
 *.xlsx
 
 # ---------- Model outputs ----------
@@ -41,3 +40,6 @@ models/
 # ---------- Hugging Face / caches ----------
 .cache/
 .huggingface/
+
+# ---------- Local leftovers ----------
+_to_delete/

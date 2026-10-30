@@ -1,0 +1,9 @@
+# Baseline: TF-IDF + Logistic Regression
+# Current code: notebooks/02_pao_baseline_tfidf_logreg.ipynb
+tfidf:
+  lowercase: true
+  ngram_range: [1, 2]
+  min_df: 2
+logistic_regression:
+  max_iter: 1000
+  class_weight: balanced

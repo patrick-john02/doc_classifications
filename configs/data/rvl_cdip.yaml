@@ -1,0 +1,11 @@
+# RVL-CDIP public benchmark subset (used for the BERTopic experiments)
+# Built by: scripts/rvl_cdip/02_prepare_rvl_cdip_corpus.py
+source: aharley/rvl_cdip        # Hugging Face dataset, train split index
+per_class: 100                  # 16 classes x 100 = 1,600 documents
+seed: 42
+min_chars: 30                   # OCR text shorter than this is marked unusable
+ocr: RapidOCR via Intelligent-Document-Search backend
+outputs:
+  manifest: data/interim/rvl_cdip_v1_manifest.csv
+  ocr_log: data/interim/rvl_cdip_v1_ocr.jsonl
+  corpus: data/processed/rvl_cdip_v1.parquet
