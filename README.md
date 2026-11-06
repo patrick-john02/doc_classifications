@@ -40,3 +40,13 @@ python scripts/debug/test_ocr_one.py
 ```
 
 PAO classification work is in `notebooks/` (open with Jupyter from the `notebooks/` folder).
+
+Cell 1   imports and paths
+Cell 2   load sheets
+Cell 3   list columns
+Cell 3b  inspect Unnamed columns
+Cell 3c  show the 3 rows with misplaced text
+Cell 3e  SUBJECT vs DESCRIPTION check   <- run this, paste the numbers
+Cell 4   remove empty rows and Unnamed columns
+Cell 5   permanent row IDs
+Cell 6   choose input columns
