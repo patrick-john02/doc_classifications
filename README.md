@@ -43,6 +43,7 @@ PAO classification work is in `notebooks/` (open with Jupyter from the `notebook
 
 Cell 1   imports and paths
 Cell 2   load sheets
+
 Cell 3   list columns
 Cell 3b  inspect Unnamed columns
 Cell 3c  show the 3 rows with misplaced text
