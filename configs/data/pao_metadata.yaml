@@ -11,4 +11,4 @@ label_field: label              # currently = sheet name
 drop_from_text:                 # leakage risk: these give the label away
   - CONTROL#
   - AO/MEMO/EO #
-planned_output: data/processed/pao_metadata_v1.parquet
+planned_output: data/processed/pao_metadata_v2.parquet
