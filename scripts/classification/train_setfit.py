@@ -1,4 +1,16 @@
 """Train and evaluate SetFit on PAO metadata using shared 5-fold StratifiedGroupKFold.
+**The SetFit Experiment Button**
+
+-Purpose: One terminal command that loads `pao_metadata_v2.parquet`, runs SetFit across your exact 5 `cv.py`folds, 
+frees GPU VRAM after each fold, saves the final deployment model (`model/`), logs all scores (`run.json`), and saves  
+out-of-fold probabilities (`oof_predictions.parquet`).
+
+
+Why it is important: 
+1. Reproducibility: Same command works on your laptop RTX 5060 *and* on Colab L4 — swap `--base-model`, `--num-iterations`, or `--samples-per-class` and every run gets its 
+own folder + `run.json`.
+2. Honest probabilities: `oof_predictions.parquet` records how confident SetFit was on documents it **never trained on**. If you measured confidence on training data instead, 
+the model would look falsely 99.9% confident on rows it memorized.
 
 Run from repo root:
   # Few-shot thesis ablation (16 unique examples/class, num_iterations=20)
@@ -13,7 +25,6 @@ import gc
 import json
 import time
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
 import torch
@@ -27,7 +38,6 @@ from intelligent_document_finetuning.evaluation.cv import evaluate_oof, make_cv_
 
 ROOT = Path(__file__).resolve().parents[2]
 MODELS_DIR = ROOT / "models" / "classification"
-
 
 def subsample_per_class(train_df: pd.DataFrame, k: int, seed: int) -> pd.DataFrame:
     """Optional few-shot sampler: pick up to k unique-text examples per class."""
@@ -61,6 +71,9 @@ def main() -> None:
     splits = make_cv_splits(df, n_splits=5, seed=args.seed)
 
     oof_preds = np.empty(len(df), dtype=object)
+    oof_conf = np.zeros(len(df), dtype=float)
+    class_names = sorted(df["label"].unique())
+    oof_probs = np.zeros((len(df), len(class_names)), dtype=float)
     fold_metrics = []
 
     for fold, (tr_idx, va_idx) in enumerate(splits, start=1):
@@ -83,8 +96,14 @@ def main() -> None:
         )
         clf.fit(train_df["document_text"], train_df["label"])
 
-        preds = clf.predict(val_df["document_text"])
+        probs = clf.predict_proba(val_df["document_text"])
+        fold_classes = list(clf.classes_)
+        preds = np.asarray([fold_classes[i] for i in np.argmax(probs, axis=1)], dtype=object)
         oof_preds[va_idx] = preds
+        oof_conf[va_idx] = np.max(probs, axis=1)
+        for col_i, cname in enumerate(fold_classes):
+            target_i = class_names.index(cname)
+            oof_probs[va_idx, target_i] = probs[:, col_i]
 
         fm = evaluate_oof(val_df["label"], preds)
         fold_summary = {
@@ -119,9 +138,12 @@ def main() -> None:
     out_dir = MODELS_DIR / args.run_name
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    df.assign(predicted=oof_preds)[
-        ["row_id", "document_text", "label", "predicted", "has_label_conflict"]
-    ].to_parquet(out_dir / "oof_predictions.parquet", index=False)
+    oof_df = df.assign(predicted=oof_preds, confidence=np.round(oof_conf, 4))[
+        ["row_id", "document_text", "label", "predicted", "confidence", "has_label_conflict"]
+    ]
+    for col_i, cname in enumerate(class_names):
+        oof_df[f"prob_{cname}"] = np.round(oof_probs[:, col_i], 4)
+    oof_df.to_parquet(out_dir / "oof_predictions.parquet", index=False)
 
     if not args.skip_final_fit:
         print("\n=== Fitting final SetFit model for saving ===", flush=True)

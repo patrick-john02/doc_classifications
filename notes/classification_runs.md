@@ -75,6 +75,41 @@
 2. **Why contrastive fine-tuning matters (Frozen MiniLM → SetFit):** Frozen MiniLM already lifted `LEAVES` F1 to `0.8346` via pretrained semantics, but collapsed on `AOsMEMOs` (`0.6651`) because generic embeddings group PGC memos and letters by topic. Contrastive fine-tuning pushed `AOsMEMOs` F1 up by **+0.2566** (`0.6651` → **`0.9217`**, 153/162 recalled = 94.4%) while also lifting `LEAVES` to **`0.9591`**.
 3. **Few-shot ablation (`setfit_v1_fewshot16`, only 64 rows/fold):** Achieved **98.6% recall on `LEAVES` (643/652)** and **89.5% recall on `AOsMEMOs` (145/162)** with Fold 1 reaching `0.9508` macro-F1, demonstrating strong low-data potential when moving to real scanned OCR samples.
 
+### Confidence Threshold Calibration (for Archiving Agent LLM Fallback)
+Calibrated via `scripts/classification/calibrate_threshold.py` (`src/.../evaluation/thresholds.py`) on 5-fold out-of-fold probabilities (`TfidfLogRegClassifier`, word + `char_wb`, `n = 3,618`):
+
+| threshold | auto-archive coverage | auto-archive accuracy | LLM fallback rate | errors safely caught |
+|---:|---:|---:|---:|---:|
+| `0.50` | 95.14% | 0.9236 | 4.86% | 25.07% |
+| `0.70` | 80.10% | 0.9648 | 19.90% | 70.94% |
+| `0.75` | 78.61% | 0.9698 | 21.39% | 75.50% |
+| **`0.80`** *(>=97% target)* | **75.95%** | **0.9709** | **24.05%** | **77.21%** |
+| `0.85` | 70.18% | 0.9783 | 29.82% | 84.33% |
+| `0.95` | 26.67% | 0.9969 | 73.33% | 99.15% |
+
+*(Excluding the 354 identical-text conflict rows, `T = 0.75` reaches `97.50%` auto-accuracy at `80.82%` coverage, catching `78.78%` of errors. `train_setfit.py` is now updated to save OOF `confidence` automatically for future SetFit calibration runs.)*
+
+---
+
+## Real Scanned PAO PDF Evaluation & Few-Shot Domain Adaptation (`n = 56` real PDFs)
+- **Corpus:** `data/processed/pao_real_ocr_v1.parquet` (`COMMUNICATION 25 / LEAVES 16 / CLEARANCE 15`; `AOsMEMOs 0` scans currently available; mean RapidOCR confidence `0.948`, `0` extraction errors; median Page 1 words: `CLEARANCE 76`, `COMMUNICATION 71`, `LEAVES 168.5`).
+- **Scripts:** `scripts/pao_ocr/01_extract_and_eval_real_ocr.py` (Stage 1 zero-shot transfer) and `scripts/pao_ocr/02_train_real_ocr.py` (Path B 5-fold `StratifiedKFold`, `seed = 42`, Page 1 OCR with `[?...]` and `|` artifacts cleaned).
+- **Artifacts:** `models/classification/real_ocr_eval_v1.json` and `models/classification/real_ocr_v1/` (`run.json`, `oof_predictions.parquet`, `model.joblib`).
+
+| model | setup | accuracy | macro-F1 | CLEARANCE F1 | COMMUNICATION F1 | LEAVES F1 |
+|---|---|---:|---:|---:|---:|---:|
+| Zero-Shot Metadata SetFit (`setfit_v1_iter2`) | Metadata → Real OCR (0 real scans) | 0.4464 *(25/56)* | 0.2058 | 0.0000 | 0.6173 | 0.0000 |
+| Zero-Shot Metadata TF-IDF (`tfidf_v2_best`) | Metadata → Real OCR (0 real scans) | 0.5536 *(31/56)* | 0.3229 | 0.0000 | 0.7463 | 0.5455 |
+| **TF-IDF (`word + char_wb`) on Real OCR** | 5-fold CV (~45 real scans/fold) | **0.9821** *(55/56)* | **0.9827** | **1.0000** | **0.9804** | **0.9677** |
+| **Few-Shot SetFit (Fresh MiniLM)** | 5-fold CV (~45 real scans/fold, `iter=20`) | 0.9643 *(54/56)* | 0.9658 | **1.0000** | 0.9600 | 0.9375 |
+| **Domain-Adapted SetFit (`setfit_v1_iter2` → OCR)** | 5-fold CV (~45 real scans/fold, `iter=20`) | 0.9643 *(54/56)* | 0.9652 | 0.9677 | 0.9600 | **0.9677** |
+
+### Key findings from Real-OCR validation
+1. **Severe metadata → real-OCR domain shift exposed & solved:** Metadata-only models collapsed zero-shot (`44.6%` SetFit, predicting `COMMUNICATION` on all 56/56 scans) because Excel `CLEARANCE`/`LEAVES` cells are 1–2 words while real forms are 75–170 words with RapidOCR fused tokens (`APPLICATIONFORLEAVE`, `CERTIFICATION THISISTO CERTIFYTHAT`). Training on just ~45 real scans/fold lifted accuracy by **+51.8 points** (`44.6%` → `96.4%` SetFit / `98.2%` TF-IDF char).
+2. **Real OCR completely eliminates the Excel `CLEARANCE` ↔ `LEAVES` collision:** `CLEARANCE` jumped from `0/15` → **`15/15` (`1.000` F1)** and `LEAVES` jumped from `0/16` → **`15/16` (`0.9677` F1)**.
+3. **The 1 single `LEAVES` error (`2024-12-03-LEAVE-OUT-01.pdf`) was genuinely a cover letter on Page 1:** Page 1 (`39` words) literally reads `"DEAR SIR: MAY I RESPECTFULLY TRANSMIT THE APPLICATION FOR LEAVE OF..."` with CSC Form 6 attached on Page 2 (`188` words total). All 3 models predicted `COMMUNICATION` on Page 1, and TF-IDF's confidence dropped to **`0.722`**, so a `T = 0.75` fallback threshold routes it straight to the LLM fallback (`55/55` = `100%` auto-archive accuracy on remaining docs!).
+4. **Human-in-the-Loop (HITL) continual learning ready:** `src/.../data/feedback.py` + `02_train_real_ocr.py` support `--feedback-file`, `--min-class-samples 8`, and `--champion-run` gating so `Intelligent-Document-Search` can safely learn `AOsMEMOs` (and user corrections) from bulk-upload HITL edits.
+
 ---
 
 ## Open issues / Next steps
@@ -83,9 +118,11 @@
 - [x] Remove logbook-column leakage (`CONTROL#`, `AO/MEMO/EO #`, `TYPE`, `C/O`, `REMARKS="RELEASED"`)
 - [x] Export clean datasets to `data/processed/pao_metadata_v1.parquet` and `pao_metadata_v2.parquet`
 - [x] Run clean 5-fold `StratifiedGroupKFold` TF-IDF + Logistic Regression / LinearSVC baselines (`v1` & `v2`)
-- [x] Move data loading, CV evaluation, TF-IDF, and SetFit classifiers into `src/intelligent_document_finetuning/`
+- [x] Move data loading, CV evaluation, TF-IDF, SetFit, threshold calibration, and HITL feedback gating into `src/intelligent_document_finetuning/`
 - [x] Run Frozen MiniLM, Few-Shot SetFit (`16/class`), and Full-Data SetFit (`iter=2`) on the identical v2 5-fold splits
+- [x] Build threshold calibration module + calibrate TF-IDF baseline (`T = 0.80` for `>= 97%` auto-archive accuracy)
+- [x] Validate on 56 real RapidOCR-scanned PAO PDFs (`44.6%` zero-shot → `98.2%` TF-IDF char / `96.4%` few-shot SetFit)
+- [x] Add automated unit tests in `tests/` and clean up `README.md`
 - [ ] Confirm the 13 `needs_domain_review` rows in `data/interim/pao_ask_domain_expert.csv` with PAO staff
-- [ ] Calibrate confidence threshold (`predict_with_confidence`) for the archiving agent's LLM fallback
-- [ ] Validate `setfit_v1_iter2` against real RapidOCR-scanned PAO documents
-- [ ] Add `tests/` smoke tests and clean up `README.md`
+- [ ] Collect `>= 8` real `AOsMEMOs` PDFs via PAO or HITL feedback in `Intelligent-Document-Search` and re-run `02_train_real_ocr.py --champion-run models/classification/real_ocr_v1/run.json`
+- [ ] Wire `real_ocr_v1` + `classification_feedback` HITL table into `Intelligent-Document-Search`

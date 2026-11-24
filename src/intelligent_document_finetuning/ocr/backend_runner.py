@@ -19,8 +19,9 @@ async def run(paths: list[Path]) -> None:
         row = {"doc_id": p.stem, "path": str(p)}
         try:
             with contextlib.redirect_stdout(sys.stderr):
-                # ".tiff" because the fallback doesn't recognise ".tif"
-                r = await _extract_text_fallback(p.read_bytes(), p.stem + ".tiff")
+                # Rewrite only ".tif" -> ".tiff"; preserve ".pdf", ".png", ".jpg", etc.
+                fname = p.stem + ".tiff" if p.suffix.lower() == ".tif" else p.name
+                r = await _extract_text_fallback(p.read_bytes(), fname)
             row.update(text=r.text, is_scanned=r.is_scanned, ocr_score=r.ocr_score,
                        extractor=getattr(r, "extractor", "rapidocr"), error=None)
         except Exception as e:

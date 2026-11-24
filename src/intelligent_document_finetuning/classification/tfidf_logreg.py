@@ -35,18 +35,16 @@ class TfidfLogRegClassifier:
         self.pipeline: Pipeline = self._build_pipeline()
 
     def _build_pipeline(self) -> Pipeline:
-        char_vectorizer = TfidfVectorizer(
-            lowercase=True,
-            analyzer="char_wb",
-            ngram_range=(3, 5),
-            min_df=self.min_df,
-        )
         if self.use_char_ngrams:
             word_vectorizer = TfidfVectorizer(
                 lowercase=True, ngram_range=(1, 2), min_df=self.min_df
             )
-            # Define char_vectorizer using your existing settings
-
+            char_vectorizer = TfidfVectorizer(
+                lowercase=True,
+                analyzer="char_wb",
+                ngram_range=(3, 5),
+                min_df=self.min_df,
+            )
             transformers = [("word", word_vectorizer), ("char", char_vectorizer)]
             vectorizer = FeatureUnion(
                 cast(Sequence[tuple[str, TransformerMixin | Pipeline]], transformers)

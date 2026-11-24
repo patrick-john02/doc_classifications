@@ -67,14 +67,17 @@ class SetFitClassifier:
             "label": [label_to_id[lbl] for lbl in label_list],
         })
 
-        self.model = SetFitModel.from_pretrained(
-            self.base_model,
-            labels=sorted_labels,
-            head_params={
+        # When continuing from a previously saved SetFit folder (domain adaptation),
+        # model_head.pkl already exists and SetFitModel.from_pretrained rejects head_params.
+        has_saved_head = (Path(self.base_model) / "model_head.pkl").exists()
+        load_kwargs: dict = {"labels": sorted_labels}
+        if not has_saved_head:
+            load_kwargs["head_params"] = {
                 "class_weight": "balanced",
                 "max_iter": 1000,
-            },
-        )
+            }
+
+        self.model = SetFitModel.from_pretrained(self.base_model, **load_kwargs)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             args = TrainingArguments(
