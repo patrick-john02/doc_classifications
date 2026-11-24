@@ -56,13 +56,36 @@
 
 ---
 
+## SetFit & Semantic Embedding Runs (`pao_metadata_v2.parquet`, identical 5 folds via `src/.../evaluation/cv.py`)
+- **Backbone:** `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` (RTX 5060 GPU, AMP enabled).
+- **Script:** `scripts/classification/train_setfit.py` using `SetFitClassifier` (`src/intelligent_document_finetuning/classification/setfit_model.py`).
+- **Artifacts:** `models/classification/setfit_v1_fewshot16/` and `models/classification/setfit_v1_iter2/` (`run.json`, `oof_predictions.parquet`, `model/`).
+
+| model | mean accuracy | mean macro-F1 | OOF macro-F1 | OOF macro-F1 (no conflict) | AOsMEMOs F1 | CLEARANCE F1 | COMMUNICATION F1 | LEAVES F1 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| **SetFit Full-Data (`iter=2`, `bs=32`)** | **0.9725** (±0.0087) | **0.9532** (±0.0110) | **0.9548** | **0.9672** | **0.9217** | **0.9505** | **0.9880** | **0.9591** |
+| TF-IDF (word) + LinearSVC | 0.9576 (±0.0254) | 0.9291 (±0.0346) | 0.9358 | 0.9441 | 0.8961 | 0.9465 | 0.9756 | 0.9249 |
+| TF-IDF (word + `char_wb`) + LogReg | 0.9026 (±0.0468) | 0.8378 (±0.0879) | 0.8769 | 0.8678 | 0.9024 | 0.9349 | 0.9329 | 0.7371 |
+| Frozen MiniLM + LogReg *(no fine-tuning)* | — | — | 0.8198 | 0.8216 | 0.6651 | 0.8259 | 0.9536 | 0.8346 |
+| SetFit Few-Shot (`16/class`, `iter=20`) | 0.8447 (±0.0800) | 0.7613 (±0.1311) | 0.7730 | 0.8046 | 0.6808 | 0.6969 | 0.9377 | 0.7766 |
+| TF-IDF (word) + LogReg *(config baseline)* | 0.8140 (±0.0769) | 0.7015 (±0.1142) | 0.7621 | 0.7502 | 0.8862 | 0.7905 | 0.8808 | 0.4911 |
+
+### Key findings from SetFit runs
+1. **SetFit (`setfit_v1_iter2`) beat every baseline on every single metric and every single class:** `0.9725` accuracy (`±0.0087`), `0.9532` mean macro-F1 (`±0.0110` — 3× tighter fold stability than LinearSVC's `±0.0346`), and **`0.9672` OOF macro-F1** excluding the 354 identical-text `CLEARANCE`↔`LEAVES` collisions.
+2. **Why contrastive fine-tuning matters (Frozen MiniLM → SetFit):** Frozen MiniLM already lifted `LEAVES` F1 to `0.8346` via pretrained semantics, but collapsed on `AOsMEMOs` (`0.6651`) because generic embeddings group PGC memos and letters by topic. Contrastive fine-tuning pushed `AOsMEMOs` F1 up by **+0.2566** (`0.6651` → **`0.9217`**, 153/162 recalled = 94.4%) while also lifting `LEAVES` to **`0.9591`**.
+3. **Few-shot ablation (`setfit_v1_fewshot16`, only 64 rows/fold):** Achieved **98.6% recall on `LEAVES` (643/652)** and **89.5% recall on `AOsMEMOs` (145/162)** with Fold 1 reaching `0.9508` macro-F1, demonstrating strong low-data potential when moving to real scanned OCR samples.
+
+---
+
 ## Open issues / Next steps
 - [x] Remove 13 cross-sheet `AOsMEMOs`↔`COMMUNICATION` duplicates
 - [x] Complete first-pass (`v1`) and error-driven (`v2`) label review (`167 verified`, `13 needs_domain_review` exported to `data/interim/pao_ask_domain_expert.csv`)
 - [x] Remove logbook-column leakage (`CONTROL#`, `AO/MEMO/EO #`, `TYPE`, `C/O`, `REMARKS="RELEASED"`)
 - [x] Export clean datasets to `data/processed/pao_metadata_v1.parquet` and `pao_metadata_v2.parquet`
 - [x] Run clean 5-fold `StratifiedGroupKFold` TF-IDF + Logistic Regression / LinearSVC baselines (`v1` & `v2`)
+- [x] Move data loading, CV evaluation, TF-IDF, and SetFit classifiers into `src/intelligent_document_finetuning/`
+- [x] Run Frozen MiniLM, Few-Shot SetFit (`16/class`), and Full-Data SetFit (`iter=2`) on the identical v2 5-fold splits
 - [ ] Confirm the 13 `needs_domain_review` rows in `data/interim/pao_ask_domain_expert.csv` with PAO staff
-- [ ] Move data loading, CV evaluation, and TF-IDF classifier into `src/intelligent_document_finetuning/`
-- [ ] Run SetFit (`paraphrase-multilingual-MiniLM-L12-v2`) on the identical v2 5-fold splits
-- [ ] Validate metadata-trained models against a small holdout set of real RapidOCR-scanned PAO documents
+- [ ] Calibrate confidence threshold (`predict_with_confidence`) for the archiving agent's LLM fallback
+- [ ] Validate `setfit_v1_iter2` against real RapidOCR-scanned PAO documents
+- [ ] Add `tests/` smoke tests and clean up `README.md`

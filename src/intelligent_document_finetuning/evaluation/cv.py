@@ -33,7 +33,7 @@ def make_cv_splits(
     splits:list[tuple[np.ndarray, np.ndarray]] = []
     for fold, (train_idx, val_idx) in enumerate(
         sgkf.split(
-            df["document_text"],
+            df["document_text"].to_numpy(),
             df["label"],
             groups=df["group_id"],
         ),
@@ -67,6 +67,7 @@ def evaluate_oof(
         - per_class_f1: dict mapping each class name -> rounded F1 score
         - confusion_matrix: DataFrame (rows = actual_<class>, cols = pred_<class>)
     """
+    
     labels = sorted(pd.Series(y_true).unique())
 
     # TODO 2 (Learn Mode — ~8 lines):
@@ -79,4 +80,49 @@ def evaluate_oof(
     # 4. Put them into `metrics = {"accuracy_all": ..., "macro_f1_all": ..., "per_class_f1": ..., "confusion_matrix": cm}`
     # 5. If `has_conflict is not None`, compute accuracy & macro-F1 on `mask = ~np.asarray(has_conflict, dtype=bool)`
     #    and add "accuracy_no_conflict" and "macro_f1_no_conflict" to `metrics`, then return `metrics`.
-    raise NotImplementedError("Fill in TODO 2: compute OOF metrics and confusion matrix")
+
+    acc_all=accuracy_score(y_true, y_pred)
+    macro_all=f1_score(y_true, y_pred, average="macro")
+
+    report=classification_report(y_true, y_pred, output_dict=True, zero_division=0)
+
+    per_class_f1={}
+
+    for lbl in labels:
+        class_metrics=report[lbl]
+
+        if not isinstance(class_metrics, dict):
+            raise TypeError(f"Expected metrics dictionary for {lbl}")
+        per_class_f1[lbl]=round(float(class_metrics["f1-score"]),4)
+
+    cm=pd.DataFrame(
+        confusion_matrix(y_true, y_pred, labels=labels),
+        index=[f"actual_{l}" for l in labels] ,
+        columns=[f"pred_{l}" for l in labels]
+
+    )
+
+    metrics = {
+        "accuracy_all": acc_all,
+        "macro_f1_all":macro_all,
+        "per_class_f1": per_class_f1,
+        "confusion_matrix":cm
+    }
+
+
+
+    if has_conflict is not None:
+        mask = ~np.asarray(has_conflict, dtype=bool)
+
+        if mask.any():
+            true_clean=np.asarray(y_true)[mask]
+            pred_clean=np.asarray(y_pred)[mask]
+
+            metrics["accuracy_no_conflict"] = accuracy_score(true_clean, pred_clean)
+            metrics["macro_f1_no_conflict"] = f1_score(
+                true_clean, pred_clean, average="macro", zero_division=0
+            )
+        
+    return metrics
+
+
