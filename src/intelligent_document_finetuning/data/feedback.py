@@ -142,7 +142,7 @@ def decide_promotion(
             "new_classes": sorted(challenger_classes),
         }
 
-    champ_best_name = champion_report.get("best_model")
+    champ_best_name = champion_report.get("production_candidate") or champion_report.get("best_model")
     champ_results = champion_report.get("results", [])
     champ_entry = next((r for r in champ_results if r["model"] == champ_best_name), champ_results[0])
     champion_f1 = float(champ_entry["macro_f1"])

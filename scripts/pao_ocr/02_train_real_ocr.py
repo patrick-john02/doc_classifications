@@ -213,39 +213,44 @@ def main() -> None:
         summaries.append(s)
         oof_map[name] = oof_df
 
-    # 5) Select the winning model by Macro-F1 and calibrate its LLM-fallback threshold
+    # 5) Pick overall best + best SetFit candidate (production classifier) and calibrate thresholds
     best = max(summaries, key=lambda x: x["macro_f1"])
     best_name = best["model"]
-    best_oof = oof_map[best_name]
+
+    setfit_summaries = [s for s in summaries if s["model"].startswith("setfit_")]
+    best_setfit = max(setfit_summaries, key=lambda x: x["macro_f1"])
+    best_setfit_name = best_setfit["model"]
+    setfit_oof = oof_map[best_setfit_name]
 
     thresh_table = evaluate_thresholds(
-        best_oof["label"], best_oof["predicted"], best_oof["confidence"]
+        setfit_oof["label"], setfit_oof["predicted"], setfit_oof["confidence"]
     )
     rec = pick_recommended_threshold(thresh_table, min_auto_accuracy=0.95)
-    print(f"\n=== Threshold Calibration on Real OCR ({best_name}) ===")
+    print(f"\n=== Threshold Calibration on Real OCR (Production Candidate: {best_setfit_name}) ===")
     print(thresh_table.to_string(index=False))
     print("Recommended threshold (>=95% auto-accuracy):", rec)
 
-    # 6) Champion-vs-Challenger promotion gate
+    # 6) Champion-vs-Challenger promotion gate (evaluated on candidate production SetFit model)
     champion_report = (
         json.loads(args.champion_run.read_text(encoding="utf-8"))
         if args.champion_run and args.champion_run.exists()
         else None
     )
-    promotion = decide_promotion(best, champion_report)
-    print(f"\n=== Promotion Gate: {promotion['decision']} ({promotion['reason']}) ===")
+    promotion = decide_promotion(best_setfit, champion_report)
+    print(f"\n=== Promotion Gate ({best_setfit_name}): {promotion['decision']} ({promotion['reason']}) ===")
 
-    # 7) Fit final winning model on ALL merged scans and save reproducible artifacts
+    # 7) Save BOTH the TF-IDF baseline (.joblib) and the production SetFit candidate (setfit_model/)
     out_dir = MODELS_DIR / args.run_name
     out_dir.mkdir(parents=True, exist_ok=True)
-    best_oof.to_parquet(out_dir / "oof_predictions.parquet", index=False)
+    setfit_oof.to_parquet(out_dir / "oof_predictions.parquet", index=False)
 
-    print(f"\n=== Fitting final winning model ({best_name}) on all {len(df)} scans ===", flush=True)
-    final_clf = factory_map[best_name]().fit(df["clean_text"], df["label"])
-    if isinstance(final_clf, SetFitClassifier):
-        final_clf.save(out_dir / "model")
-    else:
-        final_clf.save(out_dir / "model.joblib")
+    print(f"\n=== Fitting final TF-IDF baseline on all {len(df)} scans ===", flush=True)
+    final_tfidf = factory_map["tfidf_char_real_ocr"]().fit(df["clean_text"], df["label"])
+    final_tfidf.save(out_dir / "tfidf_baseline.joblib")
+
+    print(f"=== Fitting final production SetFit ({best_setfit_name}) on all {len(df)} scans ===", flush=True)
+    final_setfit = factory_map[best_setfit_name]().fit(df["clean_text"], df["label"])
+    final_setfit.save(out_dir / "setfit_model")
 
     report = {
         "run_name": args.run_name,
@@ -256,11 +261,12 @@ def main() -> None:
         "n_splits": n_splits,
         "results": summaries,
         "best_model": best_name,
+        "production_candidate": best_setfit_name,
         "recommended_threshold_95": rec,
         "promotion": promotion,
     }
     (out_dir / "run.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
-    print(f"\nSaved real-OCR experiment & final model to: {out_dir}")
+    print(f"\nSaved TF-IDF baseline + production SetFit model to: {out_dir}")
 
 
 if __name__ == "__main__":
